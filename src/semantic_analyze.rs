@@ -2,7 +2,7 @@ use rust_lapper::{Interval, Lapper};
 use std::fmt::Display;
 
 use crate::{
-    nrs_lang::{Ast, Expr, Func},
+    ast::QbeAst,
     span::Span,
     symbol_table::{ReferenceId, SymbolId, SymbolTable},
 };
@@ -91,15 +91,16 @@ impl Ctx {
     }
 }
 
-pub fn analyze_program(ast: &Ast) -> Result<Semantic> {
+pub fn analyze_program(ast: &QbeAst) -> Result<Semantic> {
     let table = SymbolTable::default();
     let env = im_rc::Vector::new();
     let mut ctx = Ctx { env, table };
-    for (func, _) in ast.iter() {
-        let name = func.name.0.clone();
-        ctx.env.push_back((name, func.name.1.clone()));
-        ctx.table.add_symbol(func.name.1.clone());
-        analyze_function(func, &mut ctx)?;
+    for func in ast.decls() {
+        // let name = func.name.0.clone();
+        // ctx.env.push_back((name, func.name.1.clone()));
+        // ctx.table.add_symbol(func.name.1.clone());
+        // analyze_function(func, &mut ctx)?;
+        todo!()
     }
     let mut ident_range = IdentRangeLapper::new(vec![]);
     for (symbol_id, range) in ctx.table.symbol_id_to_span.iter_enumerated() {
@@ -123,60 +124,60 @@ pub fn analyze_program(ast: &Ast) -> Result<Semantic> {
     })
 }
 
-fn analyze_function(func: &Func, ctx: &mut Ctx) -> Result<()> {
-    analyze_expr(&func.body.0, ctx)
-}
-
-fn analyze_expr(expr: &Expr, ctx: &mut Ctx) -> Result<()> {
-    match expr {
-        Expr::Error => {}
-        Expr::Value(_) => {}
-        Expr::List(list) => {
-            for item in list.iter() {
-                analyze_expr(&item.0, ctx)?;
-            }
-        }
-        Expr::Local(name) => {
-            let span = match ctx.find_symbol(&name.0) {
-                Some(ty) => ty,
-                None => {
-                    dbg!(&ctx);
-                    return Err(SemanticError::UndefinedVariable {
-                        name: name.0.clone(),
-                        span: name.1.clone(),
-                    });
-                }
-            };
-            let symbol_id = *ctx.table.span_to_symbol_id.get(&span).unwrap();
-            ctx.table.add_reference(name.1.clone(), Some(symbol_id));
-        }
-        Expr::Let(name, rhs, then, name_range) => {
-            analyze_expr(&rhs.0, ctx)?;
-            ctx.table.add_symbol(name_range.clone());
-            ctx.env.push_back((name.clone(), name_range.clone()));
-            analyze_expr(&then.0, ctx)?;
-            ctx.env.pop_back();
-        }
-        Expr::Then(first, second) => {
-            analyze_expr(&first.0, ctx)?;
-            analyze_expr(&second.0, ctx)?
-        }
-        Expr::Binary(lhs, _, rhs) => {
-            analyze_expr(&lhs.0, ctx)?;
-            analyze_expr(&rhs.0, ctx)?;
-        }
-        Expr::Call(callee, args) => {
-            analyze_expr(&callee.0, ctx)?;
-            for arg in args.0.iter() {
-                analyze_expr(&arg.0, ctx)?;
-            }
-        }
-        Expr::If(cond, consequent, alternative) => {
-            analyze_expr(&cond.0, ctx)?;
-            analyze_expr(&consequent.0, ctx)?;
-            analyze_expr(&alternative.0, ctx)?;
-        }
-        Expr::Print(_) => {}
-    };
-    Ok(())
-}
+// fn analyze_function(func: &Func, ctx: &mut Ctx) -> Result<()> {
+//     analyze_expr(&func.body.0, ctx)
+// }
+//
+// fn analyze_expr(expr: &Expr, ctx: &mut Ctx) -> Result<()> {
+//     match expr {
+//         Expr::Error => {}
+//         Expr::Value(_) => {}
+//         Expr::List(list) => {
+//             for item in list.iter() {
+//                 analyze_expr(&item.0, ctx)?;
+//             }
+//         }
+//         Expr::Local(name) => {
+//             let span = match ctx.find_symbol(&name.0) {
+//                 Some(ty) => ty,
+//                 None => {
+//                     dbg!(&ctx);
+//                     return Err(SemanticError::UndefinedVariable {
+//                         name: name.0.clone(),
+//                         span: name.1.clone(),
+//                     });
+//                 }
+//             };
+//             let symbol_id = *ctx.table.span_to_symbol_id.get(&span).unwrap();
+//             ctx.table.add_reference(name.1.clone(), Some(symbol_id));
+//         }
+//         Expr::Let(name, rhs, then, name_range) => {
+//             analyze_expr(&rhs.0, ctx)?;
+//             ctx.table.add_symbol(name_range.clone());
+//             ctx.env.push_back((name.clone(), name_range.clone()));
+//             analyze_expr(&then.0, ctx)?;
+//             ctx.env.pop_back();
+//         }
+//         Expr::Then(first, second) => {
+//             analyze_expr(&first.0, ctx)?;
+//             analyze_expr(&second.0, ctx)?
+//         }
+//         Expr::Binary(lhs, _, rhs) => {
+//             analyze_expr(&lhs.0, ctx)?;
+//             analyze_expr(&rhs.0, ctx)?;
+//         }
+//         Expr::Call(callee, args) => {
+//             analyze_expr(&callee.0, ctx)?;
+//             for arg in args.0.iter() {
+//                 analyze_expr(&arg.0, ctx)?;
+//             }
+//         }
+//         Expr::If(cond, consequent, alternative) => {
+//             analyze_expr(&cond.0, ctx)?;
+//             analyze_expr(&consequent.0, ctx)?;
+//             analyze_expr(&alternative.0, ctx)?;
+//         }
+//         Expr::Print(_) => {}
+//     };
+//     Ok(())
+// }

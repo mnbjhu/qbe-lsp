@@ -2,13 +2,6 @@ use std::collections::HashMap;
 
 use dashmap::DashMap;
 use log::debug;
-use nrs_language_server::completion::completion;
-use nrs_language_server::nrs_lang::{
-    parse, type_inference, Ast, ImCompleteSemanticToken, ParserResult,
-};
-use nrs_language_server::semantic_analyze::{analyze_program, IdentType, Semantic};
-use nrs_language_server::semantic_token::LEGEND_TYPE;
-use nrs_language_server::span::Span;
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
