@@ -86,11 +86,6 @@ pub struct Semantic {
 
 impl Semantic {}
 
-pub struct Function {
-    pub name: String,
-    pub params: Vec<Type>,
-}
-
 #[derive(Debug)]
 pub struct Ctx {
     env: im_rc::Vector<(String, Span)>,

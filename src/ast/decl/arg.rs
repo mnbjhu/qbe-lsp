@@ -20,7 +20,7 @@ impl<'a> TryFrom<&'a Group<Qbe>> for ArgAst<'a> {
 
 impl<'a> ArgAst<'a> {
     pub fn ty(&self) -> TypeAst<'a> {
-        TypeAst(self.0.green_node_by_name(QbeSyntax::Ty).unwrap())
+        TypeAst::try_from(self.0.green_node_by_name(QbeSyntax::Ty).unwrap()).unwrap()
     }
 
     pub fn name(&self) -> &'a Lexeme<Qbe> {

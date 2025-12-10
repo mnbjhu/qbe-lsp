@@ -1,13 +1,11 @@
 use decl::DeclAst;
 use gibberish_core::node::{Group, Lexeme};
 use im_rc::HashMap;
+use instr::FunctionType;
 use qbe_gibberish_parser::Qbe;
 use tower_lsp::lsp_types::DiagnosticSeverity;
 
-use crate::{
-    semantic_analyze::{Function, Type},
-    span::Span,
-};
+use crate::{semantic_analyze::Type, span::Span};
 
 pub mod common;
 pub mod decl;
@@ -44,7 +42,7 @@ pub struct CheckState {
     pub temps: HashMap<String, (Type, Span)>,
     pub labels: HashMap<String, Span>,
     pub label_refs: Vec<Lexeme<Qbe>>,
-    pub function_defs: HashMap<String, (Function, Span)>,
+    pub function_defs: HashMap<String, (FunctionType, Span)>,
     pub errors: Vec<CheckError>,
 }
 
