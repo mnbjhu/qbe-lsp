@@ -4,7 +4,10 @@ use gibberish_core::node::Group;
 use qbe_gibberish_parser::{Qbe, QbeSyntax, QbeToken};
 use ty::TypeDefAst;
 
+use super::CheckState;
+
 pub mod arg;
+pub mod block;
 pub mod data;
 pub mod function;
 pub mod ty;
@@ -43,6 +46,16 @@ impl<'a> TryFrom<&'a Group<Qbe>> for DeclAst<'a> {
             QbeSyntax::TypeDef => Ok(Self::Type(TypeDefAst(value))),
             QbeSyntax::Unmatched => Err(ParseDeclError::Unmatched),
             other => Err(ParseDeclError::Unexpected(other)),
+        }
+    }
+}
+
+impl<'a> DeclAst<'a> {
+    pub fn check(&self, state: &mut CheckState) {
+        match self {
+            DeclAst::Function(f) => f.check(state),
+            DeclAst::Data(d) => todo!(),
+            DeclAst::Type(t) => todo!(),
         }
     }
 }

@@ -1,0 +1,14 @@
+function w $test() {
+@start
+  %test =l copy 123
+  %thing =w add 123, %test
+  sub 123, %test
+  call $my_func(l %test)
+  jmp @test
+@first
+  add 123, 123
+  jmp @test
+@test
+  add 123, 123
+  jmp @start
+}

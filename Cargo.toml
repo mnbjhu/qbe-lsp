@@ -19,5 +19,12 @@ oxc_index = "0.36.0"
 anyhow = "1.0.93"
 thiserror = "2.0.3"
 rust-lapper = "1.1.0"
+
+notify = "8.0.0"
+clap = { version = "4.5.53", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-log = "0.2"
+
 qbe-gibberish-parser = { path = "../qbe_gibberish_parser" }
 gibberish-core = { path = "../gibberish/crates/gibberish_core" }

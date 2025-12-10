@@ -2,7 +2,7 @@ use rust_lapper::{Interval, Lapper};
 use std::fmt::Display;
 
 use crate::{
-    ast::QbeAst,
+    ast::{decl::DeclAst, QbeAst},
     span::Span,
     symbol_table::{ReferenceId, SymbolId, SymbolTable},
 };
@@ -19,25 +19,40 @@ type IdentRangeLapper = Lapper<usize, IdentType>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Number,
-    String,
-    Bool,
-    Null,
-    Function,
-    List(Box<Type>),
+    AnyInt,
+    Long,
+    Word,
+    Byte,
+    Custom(String),
+    Unit,
     Unknown,
+    Label,
+    T,
+}
+
+impl Type {
+    pub fn is_sub_type_of(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Unknown, _) | (_, Type::Unknown) => true,
+            (Type::AnyInt, Type::Long | Type::Word | Type::Byte) => true,
+            (Type::Long, Type::Word) => true,
+            _ => self == other,
+        }
+    }
 }
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::Number => write!(f, "number"),
-            Type::String => write!(f, "string"),
-            Type::Bool => write!(f, "bool"),
-            Type::Null => write!(f, "null"),
-            Type::Function => write!(f, "function"),
-            Type::List(ty) => write!(f, "list<{ty}>"),
+            Type::Unit => write!(f, "unit"),
+            Type::Long => write!(f, "long"),
+            Type::Word => write!(f, "word"),
+            Type::Byte => write!(f, "byte"),
             Type::Unknown => write!(f, "unknown"),
+            Type::Label => write!(f, "label"),
+            Type::Custom(s) => write!(f, "{s}"),
+            Type::T => write!(f, "T"),
+            Type::AnyInt => write!(f, "AnyInt"),
         }
     }
 }
@@ -95,12 +110,20 @@ pub fn analyze_program(ast: &QbeAst) -> Result<Semantic> {
     let table = SymbolTable::default();
     let env = im_rc::Vector::new();
     let mut ctx = Ctx { env, table };
-    for func in ast.decls() {
-        // let name = func.name.0.clone();
-        // ctx.env.push_back((name, func.name.1.clone()));
-        // ctx.table.add_symbol(func.name.1.clone());
-        // analyze_function(func, &mut ctx)?;
-        todo!()
+    for decl in ast.decls() {
+        match decl {
+            DeclAst::Function(func) => {
+                let Some(name) = func.name() else {
+                    continue;
+                };
+                // ctx.env.push_back((name.text, name.span));
+                // ctx.table.add_symbol(name.span);
+                // analyze_function(func, &mut ctx)?;
+                todo!()
+            }
+            DeclAst::Data(data_ast) => todo!(),
+            DeclAst::Type(type_def_ast) => todo!(),
+        }
     }
     let mut ident_range = IdentRangeLapper::new(vec![]);
     for (symbol_id, range) in ctx.table.symbol_id_to_span.iter_enumerated() {

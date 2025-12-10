@@ -1,6 +1,17 @@
 use std::collections::HashMap;
 
+use log::info;
+use qbe_gibberish_parser::QbeToken;
 use tower_lsp::lsp_types::SemanticTokenType;
+
+use crate::ast::QbeAst;
+
+#[derive(Debug)]
+pub struct ImCompleteSemanticToken {
+    pub start: usize,
+    pub length: usize,
+    pub token_type: usize,
+}
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::FUNCTION,
@@ -11,88 +22,46 @@ pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
     SemanticTokenType::OPERATOR,
     SemanticTokenType::PARAMETER,
+    SemanticTokenType::TYPE,
+    SemanticTokenType::DECORATOR,
+    SemanticTokenType::PROPERTY,
 ];
 
-pub fn semantic_token_from_ast(ast: &HashMap<String, Func>) -> Vec<ImCompleteSemanticToken> {
+pub fn semantic_token_from_ast(ast: &QbeAst) -> Vec<ImCompleteSemanticToken> {
     let mut semantic_tokens = vec![];
 
-    ast.iter().for_each(|(_func_name, function)| {
-        function.args.iter().for_each(|(_, span)| {
+    ast.0.lexemes().for_each(|it| {
+        let kind = match it.kind {
+            QbeToken::Global => Some(SemanticTokenType::PROPERTY),
+            QbeToken::TypeName | QbeToken::L | QbeToken::W | QbeToken::B => {
+                Some(SemanticTokenType::TYPE)
+            }
+            QbeToken::String => Some(SemanticTokenType::STRING),
+            QbeToken::Int => Some(SemanticTokenType::NUMBER),
+            QbeToken::Comment => Some(SemanticTokenType::COMMENT),
+            QbeToken::Label => Some(SemanticTokenType::DECORATOR),
+            QbeToken::Newline | QbeToken::Ws | QbeToken::Temp => None,
+            QbeToken::Comma
+            | QbeToken::Eq
+            | QbeToken::Eql
+            | QbeToken::Eqw
+            | QbeToken::Eqb
+            | QbeToken::LBracket
+            | QbeToken::RBracket
+            | QbeToken::LBrace
+            | QbeToken::RBrace
+            | QbeToken::LParen
+            | QbeToken::RParen => None,
+            _ => Some(SemanticTokenType::KEYWORD),
+        };
+        if let Some(kind) = kind {
             semantic_tokens.push(ImCompleteSemanticToken {
-                start: span.start,
-                length: span.len(),
-                token_type: LEGEND_TYPE
-                    .iter()
-                    .position(|item| item == &SemanticTokenType::PARAMETER)
-                    .unwrap(),
+                start: it.span.start,
+                length: it.span.len(),
+                token_type: LEGEND_TYPE.iter().position(|item| item == &kind).unwrap(),
             });
-        });
-        let (_, span) = &function.name;
-        semantic_tokens.push(ImCompleteSemanticToken {
-            start: span.start,
-            length: span.len(),
-            token_type: LEGEND_TYPE
-                .iter()
-                .position(|item| item == &SemanticTokenType::FUNCTION)
-                .unwrap(),
-        });
-        semantic_token_from_expr(&function.body, &mut semantic_tokens);
+        }
     });
 
     semantic_tokens
-}
-
-pub fn semantic_token_from_expr(
-    expr: &Spanned<Expr>,
-    semantic_tokens: &mut Vec<ImCompleteSemanticToken>,
-) {
-    match &expr.0 {
-        Expr::Error => {}
-        Expr::Value(_) => {}
-        Expr::List(_) => {}
-        Expr::Local((_name, span)) => {
-            semantic_tokens.push(ImCompleteSemanticToken {
-                start: span.start,
-                length: span.len(),
-                token_type: LEGEND_TYPE
-                    .iter()
-                    .position(|item| item == &SemanticTokenType::VARIABLE)
-                    .unwrap(),
-            });
-        }
-        Expr::Let(_, rhs, rest, name_span) => {
-            semantic_tokens.push(ImCompleteSemanticToken {
-                start: name_span.start,
-                length: name_span.len(),
-                token_type: LEGEND_TYPE
-                    .iter()
-                    .position(|item| item == &SemanticTokenType::VARIABLE)
-                    .unwrap(),
-            });
-            semantic_token_from_expr(rhs, semantic_tokens);
-            semantic_token_from_expr(rest, semantic_tokens);
-        }
-        Expr::Then(first, rest) => {
-            semantic_token_from_expr(first, semantic_tokens);
-            semantic_token_from_expr(rest, semantic_tokens);
-        }
-        Expr::Binary(lhs, _op, rhs) => {
-            semantic_token_from_expr(lhs, semantic_tokens);
-            semantic_token_from_expr(rhs, semantic_tokens);
-        }
-        Expr::Call(expr, params) => {
-            semantic_token_from_expr(expr, semantic_tokens);
-            params.0.iter().for_each(|p| {
-                semantic_token_from_expr(p, semantic_tokens);
-            });
-        }
-        Expr::If(test, consequent, alternative) => {
-            semantic_token_from_expr(test, semantic_tokens);
-            semantic_token_from_expr(consequent, semantic_tokens);
-            semantic_token_from_expr(alternative, semantic_tokens);
-        }
-        Expr::Print(expr) => {
-            semantic_token_from_expr(expr, semantic_tokens);
-        }
-    }
 }
