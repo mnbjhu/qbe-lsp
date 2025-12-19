@@ -6,7 +6,9 @@ use std::sync::{mpsc, Mutex};
 use crate::ast::QbeAst;
 use crate::semantic_analyze::{IdentType, Semantic};
 use crate::semantic_token::{semantic_token_from_ast, ImCompleteSemanticToken, LEGEND_TYPE};
-use ast::CheckState;
+use ast::decl::DeclAst;
+use ast::instr::call::default_functions;
+use ast::{CheckState, LspItem};
 use clap::Parser;
 use dashmap::DashMap;
 use gibberish_core::err::ParseError;
@@ -46,6 +48,7 @@ impl LanguageServer for Backend {
             server_info: None,
             offset_encoding: None,
             capabilities: ServerCapabilities {
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 inlay_hint_provider: Some(OneOf::Left(true)),
                 text_document_sync: Some(TextDocumentSyncCapability::Options(
                     TextDocumentSyncOptions {
@@ -137,7 +140,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        dbg!(&params.text);
         if let Some(text) = params.text {
             let item = TextDocumentItem {
                 uri: params.text_document.uri,
@@ -159,25 +161,19 @@ impl LanguageServer for Backend {
     ) -> Result<Option<GotoDefinitionResponse>> {
         let definition = || -> Option<GotoDefinitionResponse> {
             let uri = params.text_document_position_params.text_document.uri;
-            let semantic = self.semantic_map.get(uri.as_str())?;
             let rope = self.document_map.get(uri.as_str())?;
             let position = params.text_document_position_params.position;
             let offset = position_to_offset(position, &rope)?;
+            let ast = self.ast_map.get(uri.as_str()).unwrap();
+            let decl = ast.as_group().group_at(offset)?;
+            let decl = DeclAst::try_from(decl).unwrap();
 
-            let interval = semantic.ident_range.find(offset, offset + 1).next()?;
-            let interval_val = interval.val;
-            let range = match interval_val {
-                IdentType::Binding(symbol_id) => {
-                    let span = &semantic.table.symbol_id_to_span[symbol_id];
-                    Some(span.clone())
-                }
-                IdentType::Reference(reference_id) => {
-                    let reference = semantic.table.reference_id_to_reference.get(reference_id)?;
-                    let symbol_id = reference.symbol_id?;
-                    let symbol_range = semantic.table.symbol_id_to_span.get(symbol_id)?;
-                    Some(symbol_range.clone())
-                }
-            };
+            let mut state = CheckState::default();
+            decl.check(&mut state);
+
+            let node = decl.at(offset);
+            let node = node?;
+            let range = node.definition(&state);
 
             range.and_then(|range| {
                 let start_position = offset_to_position(range.start, &rope)?;
@@ -194,11 +190,19 @@ impl LanguageServer for Backend {
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let reference_list = || -> Option<Vec<Location>> {
             let uri = params.text_document_position.text_document.uri;
-            let semantic = self.semantic_map.get(uri.as_str())?;
             let rope = self.document_map.get(uri.as_str())?;
             let position = params.text_document_position.position;
             let offset = position_to_offset(position, &rope)?;
-            let reference_span_list = get_references(&semantic, offset, offset + 1, false)?;
+            let ast = self.ast_map.get(uri.as_str()).unwrap();
+            let decl = ast.as_group().group_at(offset)?;
+            let decl = DeclAst::try_from(decl).unwrap();
+
+            let mut state = CheckState::default();
+            decl.check(&mut state);
+
+            let node = decl.at(offset);
+            let node = node?;
+            let reference_span_list = node.references(&state);
 
             let ret = reference_span_list
                 .into_iter()
@@ -303,6 +307,47 @@ impl LanguageServer for Backend {
                 data,
             })
         }))
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        dbg!("Hover");
+        let hover = || -> Option<Hover> {
+            let uri = params.text_document_position_params.text_document.uri;
+            let rope = self.document_map.get(uri.as_str())?;
+            let position = params.text_document_position_params.position;
+            let offset = position_to_offset(position, &rope)?;
+            let ast = self.ast_map.get(uri.as_str()).unwrap();
+            let Some(decl) = ast.as_group().group_at(offset) else {
+                dbg!("Couldn't find top level stmt");
+                return None;
+            };
+            let Ok(decl) = DeclAst::try_from(decl) else {
+                dbg!("Failed to get decl", decl);
+                return None;
+            };
+
+            let node = decl.at(offset);
+
+            let mut state = CheckState::default();
+            decl.check(&mut state);
+
+            let Some(node) = node else {
+                dbg!("Couldn't find 'at' node");
+                return None;
+            };
+
+            if let Some(contents) = node.hover(&state) {
+                dbg!("Found hover {contents:?}");
+                Some(Hover {
+                    contents,
+                    range: None,
+                })
+            } else {
+                dbg!("No hover found");
+                None
+            }
+        }();
+        Ok(hover)
     }
 
     // async fn inlay_hint(
@@ -492,11 +537,9 @@ impl Backend {
         let rope = ropey::Rope::from_str(params.text);
         self.document_map
             .insert(params.uri.to_string(), rope.clone());
-        dbg!("starting parse {:?}", params.text);
         let lst = Qbe::parse(params.text);
-        dbg!("finished parse");
         let mut diagnostics = lst
-            .errors()
+            .all_leading_errors()
             .filter_map(|(_, err)| {
                 let (message, _) = match err {
                     ParseError::MissingError { start, expected } => {
@@ -529,11 +572,13 @@ impl Backend {
         let ast = QbeAst(lst.as_group());
         let diags = {
             let mut state = CheckState::default();
+            state.function_defs = default_functions();
             ast.check(&mut state);
             state.errors
         };
         let semantic_tokens = semantic_token_from_ast(&ast);
 
+        self.ast_map.insert(params.uri.to_string(), lst);
         for err in diags {
             let start_position = offset_to_position(err.span.start, &rope).unwrap();
             let end_position = offset_to_position(err.span.end, &rope).unwrap();

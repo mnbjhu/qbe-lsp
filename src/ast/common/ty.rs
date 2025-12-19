@@ -1,8 +1,12 @@
 use gibberish_core::node::{Group, Lexeme, Node};
 use qbe_gibberish_parser::{Qbe, QbeSyntax, QbeToken};
 
-use crate::semantic_analyze::Type;
+use crate::{
+    ast::{LspItem, LspNode},
+    semantic_analyze::Type,
+};
 
+#[derive(Clone)]
 pub enum TypeAst<'a> {
     Long(&'a Lexeme<Qbe>),
     Word(&'a Lexeme<Qbe>),
@@ -25,11 +29,18 @@ impl<'a> TryFrom<&'a Group<Qbe>> for TypeAst<'a> {
             QbeToken::W => Ok(TypeAst::Word(l)),
             QbeToken::B => Ok(TypeAst::Byte(l)),
             QbeToken::TypeName => Ok(TypeAst::Custom(l)),
-            kind => {
-                dbg!("Found error expr", kind);
-                Err(())
-            }
+            kind => Err(()),
         }
+    }
+}
+
+impl<'a> TypeAst<'a> {
+    pub fn lexeme(&self) -> &'a Lexeme<Qbe> {
+        let (TypeAst::Long(lexeme)
+        | TypeAst::Word(lexeme)
+        | TypeAst::Byte(lexeme)
+        | TypeAst::Custom(lexeme)) = self;
+        lexeme
     }
 }
 
@@ -40,6 +51,16 @@ impl<'a> From<TypeAst<'a>> for Type {
             TypeAst::Word(_) => Type::Word,
             TypeAst::Byte(_) => Type::Byte,
             TypeAst::Custom(lexeme) => Type::Custom(lexeme.text.clone()),
+        }
+    }
+}
+
+impl<'a> LspItem<'a> for TypeAst<'a> {
+    fn at(&self, offset: usize) -> Option<LspNode<'a>> {
+        if self.lexeme().span.contains(&offset) {
+            Some(LspNode::Type(self.clone()))
+        } else {
+            None
         }
     }
 }

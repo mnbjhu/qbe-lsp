@@ -3,8 +3,9 @@ use qbe_gibberish_parser::{Qbe, QbeSyntax, QbeToken};
 
 use crate::semantic_analyze::Type;
 
-use super::CheckState;
+use super::{CheckState, LspNode};
 
+#[derive(Clone)]
 pub enum ExprAst<'a> {
     Immediate(&'a Lexeme<Qbe>),
     Temp(&'a Lexeme<Qbe>),
@@ -27,16 +28,13 @@ impl<'a> TryFrom<&'a Group<Qbe>> for ExprAst<'a> {
             QbeToken::Temp => Ok(ExprAst::Temp(l)),
             QbeToken::Global => Ok(ExprAst::Global(l)),
             QbeToken::Label => Ok(ExprAst::Label(l)),
-            kind => {
-                dbg!("Found error expr", kind);
-                Err(())
-            }
+            kind => Err(()),
         }
     }
 }
 
 impl<'a> ExprAst<'a> {
-    pub fn get_type(&self, state: &mut CheckState) -> Type {
+    pub fn get_type(&self, state: &mut CheckState<'a>) -> Type {
         match self {
             ExprAst::Immediate(_) => Type::AnyInt, // TODO: Check this
             ExprAst::Temp(lexeme) => state
@@ -44,7 +42,6 @@ impl<'a> ExprAst<'a> {
                 .get(&lexeme.text)
                 .map(|(ty, _)| ty.clone())
                 .unwrap_or_else(|| {
-                    dbg!("Temp not defined", &lexeme.text);
                     state.error(
                         format!("Temp not defined '{}'", lexeme.text),
                         lexeme.span.clone(),
@@ -71,5 +68,17 @@ impl<'a> ExprAst<'a> {
         let (ExprAst::Immediate(g) | ExprAst::Temp(g) | ExprAst::Global(g) | ExprAst::Label(g)) =
             self;
         g.span.clone()
+    }
+    pub fn check(&self, expected: &Type, state: &mut CheckState<'a>) {
+        if let ExprAst::Temp(temp) = self {
+            state.temp_refs.push(Lexeme::clone(temp));
+        }
+        let ty = self.get_type(state);
+        if !ty.is_sub_type_of(expected) {
+            state.error(
+                format!("Expected {expected} but found {ty}"),
+                self.lexeme().span.clone(),
+            );
+        }
     }
 }

@@ -4,7 +4,7 @@ use gibberish_core::node::Group;
 use qbe_gibberish_parser::{Qbe, QbeSyntax, QbeToken};
 use ty::TypeDefAst;
 
-use super::CheckState;
+use super::{CheckState, LspItem, LspNode};
 
 pub mod arg;
 pub mod block;
@@ -18,6 +18,7 @@ pub enum DeclAst<'a> {
     Type(TypeDefAst<'a>),
 }
 
+#[derive(Debug)]
 pub enum ParseDeclError {
     Unmatched,
     MissingName,
@@ -30,14 +31,14 @@ impl<'a> TryFrom<&'a Group<Qbe>> for DeclAst<'a> {
     fn try_from(value: &'a Group<Qbe>) -> Result<Self, Self::Error> {
         match value.kind {
             QbeSyntax::FunctionDef => {
-                if value.lexeme_by_kind(QbeToken::Global).is_some() {
+                if value.token_by_kind(QbeToken::Global).is_some() {
                     Ok(Self::Function(FunctionAst(value)))
                 } else {
                     Err(ParseDeclError::MissingName)
                 }
             }
             QbeSyntax::DataDef => {
-                if value.lexeme_by_kind(QbeToken::Global).is_some() {
+                if value.token_by_kind(QbeToken::Global).is_some() {
                     Ok(Self::Data(DataAst(value)))
                 } else {
                     Err(ParseDeclError::MissingName)
@@ -51,9 +52,19 @@ impl<'a> TryFrom<&'a Group<Qbe>> for DeclAst<'a> {
 }
 
 impl<'a> DeclAst<'a> {
-    pub fn check(&self, state: &mut CheckState) {
+    pub fn check(&self, state: &mut CheckState<'a>) {
         match self {
             DeclAst::Function(f) => f.check(state),
+            DeclAst::Data(d) => {}
+            DeclAst::Type(t) => {}
+        }
+    }
+}
+
+impl<'a> LspItem<'a> for DeclAst<'a> {
+    fn at(&self, offset: usize) -> Option<LspNode<'a>> {
+        match self {
+            DeclAst::Function(f) => f.at(offset),
             DeclAst::Data(d) => todo!(),
             DeclAst::Type(t) => todo!(),
         }

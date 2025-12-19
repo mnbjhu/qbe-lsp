@@ -5,6 +5,6 @@ pub struct TypeDefAst<'a>(pub &'a Group<Qbe>);
 
 impl<'a> TypeDefAst<'a> {
     pub fn name(&self) {
-        self.0.lexeme_by_kind(QbeToken::TypeName);
+        self.0.token_by_kind(QbeToken::TypeName);
     }
 }

@@ -4,7 +4,7 @@ use qbe_gibberish_parser::{Qbe, QbeSyntax};
 
 use crate::semantic_analyze::Type;
 
-use super::{instr::InstrAst, CheckState};
+use super::{instr::InstrAst, CheckState, LspItem, LspNode};
 
 pub mod assign;
 
@@ -14,8 +14,7 @@ pub enum StmtAst<'a> {
 }
 
 impl<'a> StmtAst<'a> {
-    pub fn check(&self, state: &mut CheckState) {
-        dbg!("Checking stmt");
+    pub fn check(&self, state: &mut CheckState<'a>) {
         match self {
             StmtAst::Assign(assign) => assign.check(state),
             StmtAst::Instr(instr) => instr.check(&Type::Unknown, state),
@@ -29,6 +28,15 @@ impl<'a> From<&'a Group<Qbe>> for StmtAst<'a> {
             StmtAst::Assign(AssignAst(value))
         } else {
             StmtAst::Instr(InstrAst(value))
+        }
+    }
+}
+
+impl<'a> LspItem<'a> for StmtAst<'a> {
+    fn at(&self, offset: usize) -> Option<LspNode<'a>> {
+        match self {
+            StmtAst::Assign(assign_ast) => assign_ast.at(offset),
+            StmtAst::Instr(instr_ast) => instr_ast.at(offset),
         }
     }
 }

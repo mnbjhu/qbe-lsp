@@ -35,7 +35,10 @@ impl Type {
         match (self, other) {
             (Type::Unknown, _) | (_, Type::Unknown) => true,
             (Type::AnyInt, Type::Long | Type::Word | Type::Byte) => true,
+            (Type::Long | Type::Word, Type::T) => true,
             (Type::Long, Type::Word) => true,
+            (Type::Custom(_), Type::Long) => true,
+            (Type::Long, Type::Custom(_)) => true,
             _ => self == other,
         }
     }

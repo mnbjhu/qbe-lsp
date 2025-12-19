@@ -30,7 +30,7 @@ pub const LEGEND_TYPE: &[SemanticTokenType] = &[
 pub fn semantic_token_from_ast(ast: &QbeAst) -> Vec<ImCompleteSemanticToken> {
     let mut semantic_tokens = vec![];
 
-    ast.0.lexemes().for_each(|it| {
+    ast.0.all_tokens().for_each(|it| {
         let kind = match it.kind {
             QbeToken::Global => Some(SemanticTokenType::PROPERTY),
             QbeToken::TypeName | QbeToken::L | QbeToken::W | QbeToken::B => {
@@ -46,8 +46,6 @@ pub fn semantic_token_from_ast(ast: &QbeAst) -> Vec<ImCompleteSemanticToken> {
             | QbeToken::Eql
             | QbeToken::Eqw
             | QbeToken::Eqb
-            | QbeToken::LBracket
-            | QbeToken::RBracket
             | QbeToken::LBrace
             | QbeToken::RBrace
             | QbeToken::LParen
